@@ -2,18 +2,21 @@ import docker
 from docker.errors import APIError
 client = docker.from_env()
 
-# make a list of network
+# make a list of network and get bridge network id
 networkNameList = []
 for network in client.networks.list():
 	networkName = network.name
-	networkNameList.insert(0,networkName)
+	networkNameList.append(networkName)
+	if networkName == "bridge":
+		bridgeNetworkID = network.id
 	
 
-CONTAINER = []
-NETWORK = []
-IP = []
-NETID = []
+CONTAINER = []  # store list of container
+NETWORK = []    # store list of network
+IP = []         # store list of ip address
+NETID = []      # store list of network id
 	
+
 # create malicious network if it is not yet created
 if "malicious" not in networkNameList:
 		
@@ -28,10 +31,7 @@ if "malicious" not in networkNameList:
 	client.networks.create("malicious", driver="bridge", check_duplicate = True, ipam = ipam_config)
 
 
-
-
-
-# get all container name, network, IP address
+# get all containers name, network, IP address, network id
 for containerList in client.containers.list():
 	containerName = containerList.name
 	CONTAINER.append(containerName)
@@ -49,8 +49,8 @@ for containerList in client.containers.list():
 		#print containerNetworkID
 		NETID.append(containerNetworkID)
 		
-		
-# disconnect the containers from network		
+
+# main thing goes here		
 count = 0
 while count < len(IP):
 	networkID = NETID[count]
@@ -60,19 +60,12 @@ while count < len(IP):
 	malCont += str(count)
 	containerNetwork = client.networks.get(networkID)
 	containerNetwork.disconnect(container)
-	client.containers.create('ubuntu',name = malCont)
-	containerNetwork.connect(malCont, ipv4_address = ip)
+	client.containers.run('ubuntu',name = malCont, detach=True, tty=True, stdin_open=True)
+	containerNetworkNew = client.networks.get(bridgeNetworkID)
+	containerNetworkNew.disconnect(malCont)
+	containerNew = client.containers.get(malCont)
+	containerNetwork1 = client.networks.get(networkID)
+	containerNetwork1.connect(malCont, ipv4_address = ip)
 	count +=1
 	
-
-
-
-
-
-
-
-
-
-
-
-
+	
